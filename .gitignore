@@ -1,0 +1,15 @@
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+TestResults/
+*.trx
+coverage/
+# local SQLite database
+*.db
+*.db-shm
+*.db-wal
+.DS_Store
+Thumbs.db
