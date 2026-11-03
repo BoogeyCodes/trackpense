@@ -1,0 +1,168 @@
+@page "/transactions"
+@inject ITransactionService TxService
+
+<PageTitle>Transactions · Trackpense</PageTitle>
+
+<header class="page__head">
+    <div>
+        <h1>Transactions</h1>
+        <p class="muted">Record income and expenses.</p>
+    </div>
+    <MonthNav Month="_month" MonthChanged="OnMonthChanged" />
+</header>
+
+<section class="card">
+    <h2>@(_editingId is null ? "Add a transaction" : "Edit transaction")</h2>
+    <EditForm Model="_form" OnValidSubmit="Save" class="form">
+        <div class="form__row">
+            <label>Date
+                <InputDate @bind-Value="_form.Date" class="input" />
+            </label>
+            <label>Type
+                <InputSelect @bind-Value="_form.Kind" class="input">
+                    <option value="@TransactionKind.Expense">Expense</option>
+                    <option value="@TransactionKind.Income">Income</option>
+                </InputSelect>
+            </label>
+            <label>Category
+                <InputSelect @bind-Value="_form.CategoryId" class="input">
+                    <option value="0">Select…</option>
+                    @foreach (var c in _categories)
+                    {
+                        <option value="@c.Id">@c.Name</option>
+                    }
+                </InputSelect>
+            </label>
+            <label>Amount
+                <InputNumber @bind-Value="_form.Amount" class="input" step="0.01" />
+            </label>
+            <label class="form__grow">Note
+                <InputText @bind-Value="_form.Note" class="input" placeholder="optional" />
+            </label>
+        </div>
+        @if (_error is not null)
+        {
+            <p class="error">@_error</p>
+        }
+        <div class="form__actions">
+            <button type="submit" class="btn btn--primary">@(_editingId is null ? "Add" : "Save")</button>
+            @if (_editingId is not null)
+            {
+                <button type="button" class="btn" @onclick="CancelEdit">Cancel</button>
+            }
+        </div>
+    </EditForm>
+</section>
+
+<section class="card">
+    <div class="tablewrap">
+        <table class="table">
+            <thead>
+                <tr><th>Date</th><th>Category</th><th>Note</th><th class="num">Amount</th><th></th></tr>
+            </thead>
+            <tbody>
+                @if (_rows.Count == 0)
+                {
+                    <tr><td colspan="5" class="muted">No transactions this month.</td></tr>
+                }
+                @foreach (var t in _rows)
+                {
+                    <tr>
+                        <td>@t.Date.ToString("dd MMM")</td>
+                        <td><span class="chip" style="background:@t.Category?.Color"></span> @t.Category?.Name</td>
+                        <td class="muted">@t.Note</td>
+                        <td class="num @(t.Kind == TransactionKind.Income ? "pos" : "neg")">
+                            @((t.Kind == TransactionKind.Income ? "+" : "-") + t.Amount.ToString("C2"))
+                        </td>
+                        <td class="num">
+                            <button class="btn btn--small" @onclick="() => BeginEdit(t)">Edit</button>
+                            <button class="btn btn--small btn--danger" @onclick="() => Delete(t.Id)">Delete</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+@code {
+    private sealed class Form
+    {
+        public DateOnly Date { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+        public decimal Amount { get; set; }
+        public TransactionKind Kind { get; set; } = TransactionKind.Expense;
+        public int CategoryId { get; set; }
+        public string Note { get; set; } = string.Empty;
+    }
+
+    private MonthRef _month = MonthRef.Current;
+    private Form _form = new();
+    private int? _editingId;
+    private string? _error;
+    private IReadOnlyList<Category> _categories = [];
+    private IReadOnlyList<Transaction> _rows = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _categories = await TxService.CategoriesAsync();
+        await LoadRows();
+    }
+
+    private async Task OnMonthChanged(MonthRef month)
+    {
+        _month = month;
+        await LoadRows();
+    }
+
+    private async Task LoadRows() => _rows = await TxService.ListAsync(_month);
+
+    private async Task Save()
+    {
+        _error = null;
+        var input = new TransactionInput(_form.Date, _form.Amount, _form.Kind, _form.CategoryId, _form.Note);
+        try
+        {
+            if (_editingId is { } id)
+            {
+                await TxService.UpdateAsync(id, input);
+            }
+            else
+            {
+                await TxService.AddAsync(input);
+            }
+        }
+        catch (ArgumentException ex)
+        {
+            _error = ex.Message;
+            return;
+        }
+
+        _form = new Form { Date = _form.Date };
+        _editingId = null;
+        _month = MonthRef.FromDate(input.Date);
+        await LoadRows();
+    }
+
+    private void BeginEdit(Transaction t)
+    {
+        _editingId = t.Id;
+        _form = new Form { Date = t.Date, Amount = t.Amount, Kind = t.Kind, CategoryId = t.CategoryId, Note = t.Note };
+    }
+
+    private void CancelEdit()
+    {
+        _editingId = null;
+        _error = null;
+        _form = new Form();
+    }
+
+    private async Task Delete(int id)
+    {
+        await TxService.DeleteAsync(id);
+        if (_editingId == id)
+        {
+            CancelEdit();
+        }
+        await LoadRows();
+    }
+}

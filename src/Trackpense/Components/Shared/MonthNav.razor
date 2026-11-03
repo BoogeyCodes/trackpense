@@ -1,0 +1,16 @@
+<div class="monthnav">
+    <button class="btn btn--icon" @onclick="Previous" title="Previous month">‹</button>
+    <span class="monthnav__label">@Month.Label</span>
+    <button class="btn btn--icon" @onclick="Next" title="Next month" disabled="@AtCurrent">›</button>
+</div>
+
+@code {
+    [Parameter] public MonthRef Month { get; set; }
+    [Parameter] public EventCallback<MonthRef> MonthChanged { get; set; }
+
+    private bool AtCurrent => Month.Year == MonthRef.Current.Year && Month.Month == MonthRef.Current.Month;
+
+    private Task Previous() => MonthChanged.InvokeAsync(Month.AddMonths(-1));
+
+    private Task Next() => AtCurrent ? Task.CompletedTask : MonthChanged.InvokeAsync(Month.AddMonths(1));
+}

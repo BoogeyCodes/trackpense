@@ -1,0 +1,26 @@
+@* A grouped income/expense column chart per month, inline SVG. *@
+<div class="trend">
+    @{
+        var max = Totals.Count == 0 ? 0m : Totals.Max(t => Math.Max(t.Income, t.Expense));
+    }
+    @foreach (var t in Totals)
+    {
+        var incomeH = max <= 0 ? 0 : (double)(t.Income / max) * 100;
+        var expenseH = max <= 0 ? 0 : (double)(t.Expense / max) * 100;
+        <div class="trend__month">
+            <div class="trend__bars">
+                <div class="trend__bar trend__bar--income" style="height:@incomeH.ToString("0.#")%" title="Income @t.Income.ToString("C0")"></div>
+                <div class="trend__bar trend__bar--expense" style="height:@expenseH.ToString("0.#")%" title="Expense @t.Expense.ToString("C0")"></div>
+            </div>
+            <span class="trend__label">@t.Month.FirstDay.ToString("MMM")</span>
+        </div>
+    }
+</div>
+<div class="legend">
+    <span class="legend__item"><span class="legend__dot legend__dot--income"></span> Income</span>
+    <span class="legend__item"><span class="legend__dot legend__dot--expense"></span> Expense</span>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<MonthlyTotals> Totals { get; set; } = [];
+}

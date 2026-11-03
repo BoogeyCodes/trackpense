@@ -1,0 +1,107 @@
+﻿@page "/"
+@inject ISummaryService Summary
+
+<PageTitle>Dashboard · Trackpense</PageTitle>
+
+<header class="page__head">
+    <div>
+        <h1>Dashboard</h1>
+        <p class="muted">Your income, spending and budgets at a glance.</p>
+    </div>
+    <MonthNav Month="_month" MonthChanged="OnMonthChanged" />
+</header>
+
+@if (_summary is null)
+{
+    <p class="muted">Loading…</p>
+}
+else
+{
+    <section class="stats">
+        <div class="stat stat--income">
+            <span class="stat__label">Income</span>
+            <span class="stat__value">@_summary.Income.ToString("C0")</span>
+        </div>
+        <div class="stat stat--expense">
+            <span class="stat__label">Spent</span>
+            <span class="stat__value">@_summary.Expense.ToString("C0")</span>
+        </div>
+        <div class="stat @(_summary.Net >= 0 ? "stat--income" : "stat--expense")">
+            <span class="stat__label">Net</span>
+            <span class="stat__value">@_summary.Net.ToString("C0")</span>
+        </div>
+        <div class="stat @(_summary.CategoriesOverBudget > 0 ? "stat--warn" : "")">
+            <span class="stat__label">Over budget</span>
+            <span class="stat__value">@_summary.CategoriesOverBudget</span>
+        </div>
+    </section>
+
+    <div class="cards">
+        <section class="card">
+            <h2>Spending by category</h2>
+            <BarChart Bars="_bars" />
+        </section>
+
+        <section class="card">
+            <h2>Last 6 months</h2>
+            @if (_trend is not null)
+            {
+                <TrendChart Totals="_trend" />
+            }
+        </section>
+    </div>
+
+    <section class="card">
+        <h2>Budgets this month</h2>
+        @{
+            var withBudget = _summary.ByCategory.Where(c => c.HasBudget).ToList();
+        }
+        @if (withBudget.Count == 0)
+        {
+            <p class="muted">No budgets set. Add some on the <a href="budgets">Budgets</a> page.</p>
+        }
+        else
+        {
+            <div class="budgets">
+                @foreach (var c in withBudget)
+                {
+                    <div class="budgetrow">
+                        <div class="budgetrow__head">
+                            <span><span class="chip" style="background:@c.Color"></span> @c.Name</span>
+                            <span class="muted">@c.Spent.ToString("C0") / @c.Budget!.Value.ToString("C0")</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress__fill @(c.OverBudget ? "progress__fill--over" : "")"
+                                 style="width:@(Math.Min(100, (double)c.Percent))%"></div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+}
+
+@code {
+    private MonthRef _month = MonthRef.Current;
+    private MonthlySummary? _summary;
+    private IReadOnlyList<MonthlyTotals>? _trend;
+    private List<BarChart.Bar> _bars = [];
+
+    protected override Task OnInitializedAsync() => Load();
+
+    private async Task OnMonthChanged(MonthRef month)
+    {
+        _month = month;
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _summary = await Summary.ForMonthAsync(_month);
+        _trend = await Summary.TrendAsync(_month, months: 6);
+        _bars = _summary.ByCategory
+            .Where(c => c.Spent > 0)
+            .Select(c => new BarChart.Bar(c.Name, c.Spent, c.Color))
+            .ToList();
+    }
+}

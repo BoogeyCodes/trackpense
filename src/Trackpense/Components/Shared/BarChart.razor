@@ -1,0 +1,29 @@
+@* A dependency-free horizontal bar chart drawn as inline SVG. *@
+<div class="barchart">
+    @if (Bars.Count == 0)
+    {
+        <p class="muted">No data for this month.</p>
+    }
+    else
+    {
+        @foreach (var bar in Bars)
+        {
+            var pct = Max <= 0 ? 0 : (double)(bar.Value / Max) * 100;
+            <div class="barchart__row">
+                <span class="barchart__label">@bar.Label</span>
+                <div class="barchart__track">
+                    <div class="barchart__fill" style="width:@pct.ToString("0.#")%;background:@bar.Color"></div>
+                </div>
+                <span class="barchart__value">@bar.Value.ToString("C0")</span>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    public sealed record Bar(string Label, decimal Value, string Color);
+
+    [Parameter, EditorRequired] public IReadOnlyList<Bar> Bars { get; set; } = [];
+
+    private decimal Max => Bars.Count == 0 ? 0 : Bars.Max(b => b.Value);
+}

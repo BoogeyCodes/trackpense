@@ -1,0 +1,89 @@
+@page "/budgets"
+@inject IBudgetService BudgetSvc
+@inject ITransactionService TxService
+@inject ISummaryService Summary
+
+<PageTitle>Budgets · Trackpense</PageTitle>
+
+<header class="page__head">
+    <div>
+        <h1>Budgets</h1>
+        <p class="muted">Set a monthly spending limit per category.</p>
+    </div>
+    <MonthNav Month="_month" MonthChanged="OnMonthChanged" />
+</header>
+
+<section class="card">
+    <div class="tablewrap">
+        <table class="table">
+            <thead>
+                <tr><th>Category</th><th class="num">Spent</th><th class="num">Budget</th><th>Progress</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var c in _categories)
+                {
+                    var spent = _spent.GetValueOrDefault(c.Id);
+                    var limit = _limits.GetValueOrDefault(c.Id);
+                    var over = limit > 0 && spent > limit;
+                    <tr>
+                        <td><span class="chip" style="background:@c.Color"></span> @c.Name</td>
+                        <td class="num">@spent.ToString("C0")</td>
+                        <td class="num">
+                            <InputNumber Value="limit"
+                                         ValueChanged="(decimal v) => SetLimit(c.Id, v)"
+                                         ValueExpression="() => limit"
+                                         class="input input--mini" step="10" min="0" />
+                        </td>
+                        <td>
+                            @if (limit > 0)
+                            {
+                                <div class="progress">
+                                    <div class="progress__fill @(over ? "progress__fill--over" : "")"
+                                         style="width:@(Math.Min(100, (double)(spent / limit * 100)))%"></div>
+                                </div>
+                            }
+                            else
+                            {
+                                <span class="muted">—</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <p class="muted hint">Set a budget to 0 to remove it. Budgets apply to the selected month only.</p>
+</section>
+
+@code {
+    private MonthRef _month = MonthRef.Current;
+    private IReadOnlyList<Category> _categories = [];
+    private Dictionary<int, decimal> _limits = [];
+    private Dictionary<int, decimal> _spent = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _categories = await TxService.CategoriesAsync();
+        await Load();
+    }
+
+    private async Task OnMonthChanged(MonthRef month)
+    {
+        _month = month;
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        var budgets = await BudgetSvc.ForMonthAsync(_month);
+        _limits = budgets.ToDictionary(b => b.CategoryId, b => b.Limit);
+        var summary = await Summary.ForMonthAsync(_month);
+        _spent = summary.ByCategory.ToDictionary(c => c.CategoryId, c => c.Spent);
+    }
+
+    private async Task SetLimit(int categoryId, decimal value)
+    {
+        await BudgetSvc.SetAsync(categoryId, _month, value);
+        await Load();
+    }
+}
