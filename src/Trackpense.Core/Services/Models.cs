@@ -21,6 +21,9 @@ public sealed record CategorySpend(int CategoryId, string Name, string Color, de
     public bool HasBudget => Budget is > 0;
     public decimal Percent => HasBudget ? Math.Round(Spent / Budget!.Value * 100, 0, MidpointRounding.AwayFromZero) : 0;
     public bool OverBudget => HasBudget && Spent > Budget!.Value;
+
+    /// <summary>Budget left for the category (negative when over); null when there's no budget.</summary>
+    public decimal? Remaining => HasBudget ? Budget!.Value - Spent : null;
 }
 
 public sealed record MonthlySummary(
@@ -32,6 +35,10 @@ public sealed record MonthlySummary(
     public decimal Net => Income - Expense;
     public decimal TotalBudget => ByCategory.Where(c => c.HasBudget).Sum(c => c.Budget!.Value);
     public int CategoriesOverBudget => ByCategory.Count(c => c.OverBudget);
+
+    /// <summary>Share of income kept this month (Net / Income), rounded to a whole percent. 0 when no income.</summary>
+    public decimal SavingsRate =>
+        Income > 0 ? Math.Round(Net / Income * 100, 0, MidpointRounding.AwayFromZero) : 0;
 }
 
 public sealed record MonthlyTotals(MonthRef Month, decimal Income, decimal Expense)
